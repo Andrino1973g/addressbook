@@ -1,0 +1,105 @@
+---
+- name: Install Terraform on Ubuntu and Initialize VPC
+  hosts: all
+  become: yes
+
+  vars:
+    terraform_version: "1.5.0"  # Change this to the desired Terraform version
+    terraform_dir: "/usr/local/bin"
+    terraform_vpc_dir: "/opt/terraform/vpc"
+    terraform_vpc_config: |
+      provider "aws" {
+        region = "us-east-1"
+      }
+
+      resource "aws_vpc" "main" {
+        cidr_block = "10.0.0.0/16"
+        tags = {
+          Name = "main-vpc"
+        }
+      }
+
+  tasks:
+    - name: Update apt package index
+      apt:
+        update_cache: yes
+
+    - name: Install dependencies
+      apt:
+        name: 
+          - unzip
+          - curl
+        state: present
+
+    - name: Download Terraform binary
+      get_url:
+        url: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip"
+        dest: "/tmp/terraform.zip"
+
+    - name: Unzip Terraform binary
+      unarchive:
+        src: "/tmp/terraform.zip"
+        dest: "{{ terraform_dir }}"
+        remote_src: yes
+
+    - name: Ensure Terraform binary is executable
+      file:
+        path: "{{ terraform_dir }}/terraform"
+        mode: '0755'
+
+    - name: Verify Terraform installation
+      command: terraform --version
+      register: terraform_version_output
+
+    - name: Display Terraform version
+      debug:
+        msg: "{{ terraform_version_output.stdout }}"
+
+    - name: Create Terraform VPC configuration directory
+      file:
+        path: "{{ terraform_vpc_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Write Terraform VPC configuration file
+      copy:
+        dest: "{{ terraform_vpc_dir }}/main.tf"
+        content: "{{ terraform_vpc_config }}"
+
+    - name: Initialize Terraform configuration
+      command: terraform init
+      args:
+        chdir: "{{ terraform_vpc_dir }}"
+
+    - name: Validate Terraform configuration
+      command: terraform validate
+      args:
+        chdir: "{{ terraform_vpc_dir }}"
+
+    - name: Display validation success message
+      debug:
+        msg: "Terraform configuration validated successfully!"
+
+
+Steps Explained:
+Update apt package index: Updates the apt package index on the server.
+Install dependencies: Installs unzip and curl, which are required to download and extract Terraform.
+Download Terraform binary: Downloads the specified version of Terraform from the HashiCorp releases site.
+Unzip Terraform binary: Unzips the Terraform binary into the specified directory (/usr/local/bin).
+Ensure Terraform binary is executable: Ensures that the Terraform binary is executable by setting appropriate permissions.
+Verify Terraform installation: Checks the installed Terraform version to verify that the installation was successful.
+Create Terraform VPC configuration directory: Creates a directory for the Terraform VPC configuration files.
+Write Terraform VPC configuration file: Writes a basic VPC configuration to a main.tf file in the configuration directory.
+Initialize Terraform configuration: Runs terraform init in the VPC directory to initialize the Terraform configuration.
+Validate Terraform configuration: Runs terraform validate in the VPC directory to validate the configuration.
+Display validation success message: Displays a success message if the validation is successful.
+
+
+Usage
+Save the playbook to a file named install_terraform.yml.
+Run the playbook with the command:
+
+ansible-playbook -i <inventory_file> install_terraform.yml
+
+This playbook will set up Terraform on your Ubuntu server(s), initialize a VPC configuration, and validate it.
+
